@@ -17,22 +17,6 @@ constexpr double boundary_left = 0.0;
 constexpr double boundary_right = 0.0;
 constexpr double time_end = 0.2;
 
-void initial_conditions(std::vector<double> &s){
-    for(unsigned int i = 0; i < s.size(); i++){
-        auto x = i * dx - 1.0;
-        s[i] = std::sin(2.0*M_PI * x);
-        /*
-        if (-1.0 <= x && x < 0.0){
-            s[i] = 1.0;
-        } else if (0.0 <= x && x < 1.0){
-            s[i] = velocity;
-        } else {
-            s[i] = 0.0;
-        }
-        */
-    }
-}
-
 void initial_sin(std::vector<double> &s){
     for(unsigned int i = 0; i < s.size(); i++){
         auto x = i * dx - 1.0;
@@ -53,28 +37,12 @@ void initial_zero(std::vector<double> &s){
     }
 }
 
-double exact_solution(double x, double time){
-    auto ret = 0.0;
-    for(unsigned int i = 0; i < Nx; i++){
-        if (x < time){
-            ret = 1.0;
-        } else if (time <= x && x < 2.0 * time){
-            ret = x / time;
-        } else if (2.0 * time <= x && x < 1.0 + time) {
-            ret = 2.0;
-        } else {
-            ret = 0.0;
-        }
-    }
-    return ret;
-}
-
 void advection(std::vector<double> &s){
     std::vector<double> s_new(s.size());
     s_new[0] = boundary_left;
     s_new[s.size()-1] = boundary_right;
     for(unsigned int i = 1; i < s.size()-1; i++){
-        s_new[i] = s[i] - dt * (s[i] * (s[i+1] - s[i-1]) / (2.0 * dx) - std::abs(s[i]) * (s[i+1] - 2.0 * s[i] + s[i-1]) / (2.0 * dx));// + 1.0e-6 * (u[i+1] - 2.0 * u[i] + u[i-1]) / (dx * dx);
+        s_new[i] = s[i] - dt * (s[i] * (s[i+1] - s[i-1]) / (2.0 * dx) - std::abs(s[i]) * (s[i+1] - 2.0 * s[i] + s[i-1]) / (2.0 * dx));
     }
     s = s_new;
 }
@@ -101,8 +69,7 @@ int main(){
     auto z = std::vector<double>(Nx);
     initial_sin(x);
     initial_cos(y);
-    //initial_conditions(y);
-    initial_conditions(z);
+    initial_zero(z);
     auto time = 0.0;
     for(unsigned int i = 0; time < time_end; i++){
         time = i * dt;
