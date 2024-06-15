@@ -1,4 +1,4 @@
-# advection
+# Advection
 
 ## 1-Dim Navier Stokes equation.
 
@@ -20,7 +20,7 @@ $$
 
 In this repository, temperature and molar density is assumed to be a constant.
 
-### $q$-$\rho$ Representation.
+### $q$-$\rho$ representation.
 
 $$
 q := \rho u
@@ -33,3 +33,30 @@ $$
 $$
 \frac{\partial \rho}{\partial t} + \frac{\partial q}{\partial x} = 0.
 $$
+
+### $\rho$ is constants. And viscosity is 0.
+
+$$
+\frac{\partial q}{\partial t} + \frac{\partial}{\partial x}\left( \frac{q^2}{\rho} \right) = 0 \ \ \ (\rho = \rm{const.}).
+$$
+
+ref: https://math.stackexchange.com/questions/602613/entropy-solution-of-the-burgers-equation
+
+`main.cpp`
+
+```c++
+    fluid.print_u();
+    fluid.print_exact_solution();
+    fluid.print_exact_solution_2_times();
+```
+
+![](advection.png)
+
+This figure was created by the following command line operations.
+
+```
+$ make run > log.dat
+$ gnuplot
+gnuplot> set yr [-1:3]
+gnuplot> plot "log.dat" u 1:2 w lp
+```
