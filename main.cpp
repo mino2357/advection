@@ -1,5 +1,5 @@
 //
-// advection
+// 1-dim Navier-Stokes solver.
 //
 
 #include <iostream>
@@ -7,111 +7,128 @@
 #include <vector>
 #include <iomanip>
 
+// mesh with equal intervals.
 constexpr double Lx = 3.0;
-constexpr unsigned int Nx = 300;
+constexpr unsigned int Nx = 100;
 constexpr double dx = Lx / (Nx - 1);
-constexpr double Courant = 0.5;
-constexpr double velocity = 2.0;
-constexpr double dt = Courant * dx / velocity;
-constexpr double boundary_left = 0.0;
-constexpr double boundary_right = 0.0;
-constexpr double time_end = 0.2;
+// time step, and simulation time.
+constexpr double dt = 0.1 * (dx / 350.0);
+constexpr double time_end = 0.02;
 
-void initial_conditions(std::vector<double> &s){
-    for(unsigned int i = 0; i < s.size(); i++){
-        auto x = i * dx - 1.0;
-        s[i] = std::sin(2.0*M_PI * x);
-        /*
-        if (-1.0 <= x && x < 0.0){
-            s[i] = 1.0;
-        } else if (0.0 <= x && x < 1.0){
-            s[i] = velocity;
+class Fluid {
+    private:
+        double start_x = -1.0;
+        // parameters
+        double T = 300.0;
+        double R = 8.31;
+        double mu = 1.83e-5;
+        double time = 0.0;
+        std::vector<double> q; // q = rho * u.
+        std::vector<double> rho;
+    public:
+        Fluid();
+        void set_initial_conditions();
+        void print_q();
+        void print_u();
+        void print_rho();
+        void print_p();
+        void integrate_by_Euler();
+        void integrate_to_end_time_by_Euler();
+};
+
+Fluid::Fluid(){
+    q.resize(Nx);
+    rho.resize(Nx);
+}
+
+void Fluid::set_initial_conditions(){
+    for (unsigned int i = 0; i < Nx; i++){
+        double x = start_x + i * Lx / Nx;
+        if (x < 0.5){
+            rho[i] = 40.643802647412755716004813; // 101325.0 / (R * T) = 40.6438026474...
         } else {
-            s[i] = 0.0;
+            rho[i] = 0.9 * 40.643802647412755716004813;
         }
-        */
+        q[i] = 0.0;
     }
 }
 
-void initial_sin(std::vector<double> &s){
-    for(unsigned int i = 0; i < s.size(); i++){
-        auto x = i * dx - 1.0;
-        s[i] = std::sin(2.0 * M_PI * x);
+void Fluid::print_q(){
+    for (unsigned int i = 0; i < Nx; i++){
+        double x = start_x + i * dx;
+        std::cout << std::setprecision(14) << x << " " << q[i] << std::endl;
     }
+    std::cout << std::endl;
 }
 
-void initial_cos(std::vector<double> &s){
-    for(unsigned int i = 0; i < s.size(); i++){
-        auto x = i * dx - 1.0;
-        s[i] = 2.0 * M_PI * std::cos(2.0 * M_PI * x);
+void Fluid::print_u(){
+    for (unsigned int i = 0; i < Nx; i++){
+        double x = start_x + i * dx;
+        std::cout << std::setprecision(14) << x << " " << q[i] / rho[i] << std::endl;
     }
+    std::cout << std::endl;
 }
 
-void initial_zero(std::vector<double> &s){
-    for(unsigned int i = 0; i < s.size(); i++){
-        s[i] = 0.0;
+void Fluid::print_rho(){
+    for (unsigned int i = 0; i < Nx; i++){
+        double x = start_x + i * dx;
+        std::cout << std::setprecision(14) << x << " " << rho[i] << std::endl;
     }
+    std::cout << std::endl;
 }
 
-double exact_solution(double x, double time){
-    auto ret = 0.0;
-    for(unsigned int i = 0; i < Nx; i++){
-        if (x < time){
-            ret = 1.0;
-        } else if (time <= x && x < 2.0 * time){
-            ret = x / time;
-        } else if (2.0 * time <= x && x < 1.0 + time) {
-            ret = 2.0;
+void Fluid::print_p(){
+    for (unsigned int i = 0; i < Nx; i++){
+        double x = start_x + i * dx;
+        std::cout << std::setprecision(14) << x << " " << rho[i] * R * T << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void Fluid::integrate_by_Euler(){
+    std::vector<double> q_new; q_new.resize(Nx);
+    std::vector<double> rho_new; rho_new.resize(Nx);
+    // navier-stokes equation.
+    // advection term.
+    for (unsigned int i = 1; i < Nx-1; i++){
+        if (q[i] > 0.0){
+            q_new[i] = q[i] + dt * ((q[i+1] * q[i+1] / rho[i+1]) - (q[i] * q[i] / rho[i])) / dx;
         } else {
-            ret = 0.0;
+            q_new[i] = q[i] + dt * ((q[i] * q[i] / rho[i]) - (q[i-1] * q[i-1] / rho[i-1])) / dx;
         }
     }
-    return ret;
+    // pressure gradient term and viscous term.
+    for (unsigned int i = 1; i < Nx-1; i++){
+        double u_e = q[i-1] / rho[i-1];
+        double u_c = q[i] / rho[i];
+        double u_w = q[i+1] / rho[i+1];
+        q_new[i] = q[i] + dt * (- R * T * (rho[i+1] - rho[i-1]) / (2.0 * dx) + mu * (u_e - 2.0 * u_c + u_w) / (dx * dx));
+    }
+    // q boundary condition. No Slip.
+    q_new[0] = 0.0;
+    q_new[Nx-1] = 0.0;
+    // continuity equation.
+    for(unsigned int i = 1; i < Nx-1; i++){
+        rho_new[i] = rho[i] + dt * (- (q[i+1] - q[i-1]) / (2.0 * dx));
+    }
+    // rho boundary condition.
+    rho_new[0] = rho[0];
+    rho_new[Nx-1] = rho[Nx-1];
+    // update.
+    q = q_new;
+    rho = rho_new;
+    time += dt;
 }
 
-void advection(std::vector<double> &s){
-    std::vector<double> s_new(s.size());
-    s_new[0] = boundary_left;
-    s_new[s.size()-1] = boundary_right;
-    for(unsigned int i = 1; i < s.size()-1; i++){
-        s_new[i] = s[i] - dt * (s[i] * (s[i+1] - s[i-1]) / (2.0 * dx) - std::abs(s[i]) * (s[i+1] - 2.0 * s[i] + s[i-1]) / (2.0 * dx));// + 1.0e-6 * (u[i+1] - 2.0 * u[i] + u[i-1]) / (dx * dx);
-    }
-    s = s_new;
-}
-
-void advection_2(std::vector<double> &x, std::vector<double> &y){
-    std::vector<double> x_t_new(y.size());
-    std::vector<double> y_t_new(x.size());
-    y_t_new[1]          = - y[1]          * (y[2]           - boundary_left) / (2.0 * dx) + std::abs(y[1])          * (y[2]           - 2.0 * y[1]          + boundary_left) / (2.0 * dx);
-    y_t_new[y.size()-2] = - y[y.size()-2] * (boundary_right - y[y.size()-3]) / (2.0 * dx) + std::abs(y[y.size()-2]) * (boundary_right - 2.0 * y[y.size()-2] + y[y.size()-3]) / (2.0 * dx);
-    for(unsigned int i = 2; i < x.size()-2; i++){
-        x_t_new[i] = - x[i] * y[i];
-        y_t_new[i] = - y[i] * y[i]
-                     - x[i] * (y[i+1] - y[i-1]) / (2.0 * dx) + std::abs(x[i]) * (y[i+1] - 2.0 * y[i] + y[i-1]) / (2.0 * dx);
-    }
-    for(unsigned int i = 1; i < x.size()-1; i++){
-        x[i] = x[i] + dt * x_t_new[i];
-        y[i] = y[i] + dt * y_t_new[i];
+void Fluid::integrate_to_end_time_by_Euler(){
+    while (time < time_end){
+        integrate_by_Euler();
     }
 }
 
 int main(){
-    auto x = std::vector<double>(Nx);
-    auto y = std::vector<double>(Nx);
-    auto z = std::vector<double>(Nx);
-    initial_sin(x);
-    initial_cos(y);
-    //initial_conditions(y);
-    initial_conditions(z);
-    auto time = 0.0;
-    for(unsigned int i = 0; time < time_end; i++){
-        time = i * dt;
-        advection_2(x, y);
-        advection(z);
-    }
-
-    for(unsigned int i = 0; i < x.size(); i++){
-        auto pos = i * dx - 1.0;
-        std::cout << std::setprecision(15) << pos << " " << x[i] << " " << z[i] << std::endl; // exact_solution(pos, time_end) << " " << y[i] << std::endl;
-    }
+    Fluid fluid;
+    fluid.set_initial_conditions();
+    fluid.integrate_to_end_time_by_Euler();
+    fluid.print_rho();
 }
